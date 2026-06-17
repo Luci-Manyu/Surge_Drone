@@ -1,0 +1,158 @@
+<?xml version="1.0"?>
+<!--
+  Simplified visual/TF model of the SLAM quadcopter (S500 frame).
+  This URDF exists for:
+    * RViz RobotModel display
+    * robot_state_publisher -> publishes base_link -> camera_link -> camera_depth_optical_frame TF
+
+  IMPORTANT: the camera-mount geometry below (forward offset + 15 deg down pitch) MUST stay
+  numerically identical to the Gazebo SITL model in drone_sim/models/s500_depth/model.sdf,
+  otherwise the SLAM map will be mis-registered relative to the robot body.
+
+  Frame conventions (REP-103):
+    base_link               : FLU (x fwd, y left, z up), origin at frame center
+    camera_link             : mount frame, x fwd, tilted 15 deg down
+    camera_depth_optical_frame : optical (z fwd, x right, y down) -> matches Intel RealSense driver
+-->
+<robot name="slam_drone" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ===================== single source of truth ===================== -->
+  <xacro:property name="body_len"   value="0.18"/>   <!-- central electronics stack X -->
+  <xacro:property name="body_wid"   value="0.18"/>   <!-- central electronics stack Y -->
+  <xacro:property name="deck_th"    value="0.012"/>  <!-- a layer/plate thickness -->
+  <xacro:property name="arm_len"    value="0.25"/>   <!-- motor radius from center (S500 ~500mm wheelbase) -->
+  <xacro:property name="arm_rad"    value="0.008"/>
+  <xacro:property name="motor_rad"  value="0.018"/>
+  <xacro:property name="motor_h"    value="0.03"/>
+
+  <!-- camera boom / mount: ahead of frame, tilted down -->
+  <xacro:property name="cam_fwd"    value="0.22"/>   <!-- forward offset of camera from base_link -->
+  <xacro:property name="cam_up"     value="-0.02"/>  <!-- slightly below frame center -->
+  <xacro:property name="cam_pitch"  value="0.9076"/> <!-- +52 deg about Y => looks ~52 deg DOWN (sees ground at 2-4 m alt; 15 deg was too shallow -> ground beyond depth range -> VO quality=0) -->
+
+  <!-- ===================== materials ===================== -->
+  <material name="carbon">  <color rgba="0.12 0.12 0.13 1.0"/></material>
+  <material name="red_fc">  <color rgba="0.75 0.10 0.10 1.0"/></material>
+  <material name="green_jp"><color rgba="0.10 0.55 0.20 1.0"/></material>
+  <material name="blue_bat"><color rgba="0.10 0.20 0.70 1.0"/></material>
+  <material name="cam_grey"><color rgba="0.20 0.20 0.22 1.0"/></material>
+
+  <!-- ===================== helper macros ===================== -->
+  <xacro:macro name="dummy_inertial">
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="arm" params="name angle">
+    <link name="${name}">
+      <xacro:dummy_inertial/>
+      <visual>
+        <origin xyz="${arm_len/2} 0 0" rpy="0 1.5708 0"/>
+        <geometry><cylinder radius="${arm_rad}" length="${arm_len}"/></geometry>
+        <material name="carbon"/>
+      </visual>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${name}"/>
+      <origin xyz="0 0 0" rpy="0 0 ${angle}"/>
+    </joint>
+    <!-- motor at arm tip -->
+    <link name="${name}_motor">
+      <xacro:dummy_inertial/>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry><cylinder radius="${motor_rad}" length="${motor_h}"/></geometry>
+        <material name="carbon"/>
+      </visual>
+    </link>
+    <joint name="${name}_motor_joint" type="fixed">
+      <parent link="${name}"/>
+      <child link="${name}_motor"/>
+      <origin xyz="${arm_len} 0 ${motor_h/2}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- ===================== base / electronics stack ===================== -->
+  <link name="base_link">
+    <xacro:dummy_inertial/>
+    <!-- middle layer: central deck (Jetson + PDB area) -->
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="${body_len} ${body_wid} ${deck_th}"/></geometry>
+      <material name="carbon"/>
+    </visual>
+  </link>
+
+  <!-- TOP LAYER: Pixhawk 6C Mini (on vibration dampers, abstracted) -->
+  <link name="pixhawk">
+    <xacro:dummy_inertial/>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.06 0.04 0.018"/></geometry>
+      <material name="red_fc"/>
+    </visual>
+  </link>
+  <joint name="pixhawk_joint" type="fixed">
+    <parent link="base_link"/><child link="pixhawk"/>
+    <origin xyz="0 0 0.035" rpy="0 0 0"/>
+  </joint>
+
+  <!-- MIDDLE LAYER: Jetson companion computer -->
+  <link name="jetson">
+    <xacro:dummy_inertial/>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.10 0.08 0.025"/></geometry>
+      <material name="green_jp"/>
+    </visual>
+  </link>
+  <joint name="jetson_joint" type="fixed">
+    <parent link="base_link"/><child link="jetson"/>
+    <origin xyz="-0.02 0 0.014" rpy="0 0 0"/>
+  </joint>
+
+  <!-- BOTTOM LAYER: battery mounted low (low CG) -->
+  <link name="battery">
+    <xacro:dummy_inertial/>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.12 0.045 0.025"/></geometry>
+      <material name="blue_bat"/>
+    </visual>
+  </link>
+  <joint name="battery_joint" type="fixed">
+    <parent link="base_link"/><child link="battery"/>
+    <origin xyz="0 0 -0.03" rpy="0 0 0"/>
+  </joint>
+
+  <!-- arms + motors (X config) -->
+  <xacro:arm name="arm_fr" angle="0.7854"/>
+  <xacro:arm name="arm_fl" angle="2.3562"/>
+  <xacro:arm name="arm_bl" angle="3.9270"/>
+  <xacro:arm name="arm_br" angle="5.4978"/>
+
+  <!-- ===================== FRONT SENSOR: RealSense on boom ===================== -->
+  <link name="camera_link">
+    <xacro:dummy_inertial/>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><box size="0.025 0.090 0.025"/></geometry>  <!-- RealSense D435-ish bar -->
+      <material name="cam_grey"/>
+    </visual>
+  </link>
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/><child link="camera_link"/>
+    <origin xyz="${cam_fwd} 0 ${cam_up}" rpy="0 ${cam_pitch} 0"/>
+  </joint>
+
+  <!-- optical frame: REP-103 (z fwd, x right, y down). Matches RealSense depth optical frame. -->
+  <link name="camera_depth_optical_frame"/>
+  <joint name="camera_depth_optical_joint" type="fixed">
+    <parent link="camera_link"/><child link="camera_depth_optical_frame"/>
+    <origin xyz="0 0 0" rpy="-1.5708 0 -1.5708"/>
+  </joint>
+
+</robot>

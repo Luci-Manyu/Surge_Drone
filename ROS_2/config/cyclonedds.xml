@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  CycloneDDS tuning for the Surge SLAM sim.
+
+  WHY: CycloneDDS uses UDP even on localhost. The depth-camera frames from Gazebo (~300 KB+)
+  overflow the OS UDP socket buffer, and Cyclone's reliable writer then BLOCKS inside Gazebo's
+  sensor thread — which stalls the PX4 SITL lockstep and drops the MAVROS heartbeat. Enlarging
+  the receive buffer lets frames queue instead of blocking. (fastrtps avoided this by using
+  shared memory on localhost, but fastrtps crashes MAVROS, so we're on Cyclone.)
+
+  REQUIRES a matching kernel limit, or Cyclone aborts domain creation:
+      sudo sysctl -w net.core.rmem_max=134217728
+  (made persistent in /etc/sysctl.d by setup.sh `buffers` stage). Default discovery is left
+  untouched — do NOT add loopback/unicast Peer overrides here, they break peer discovery.
+-->
+<CycloneDDS xmlns="https://cdds.io/config"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/master/etc/cyclonedds.xsd">
+  <Domain id="any">
+    <Internal>
+      <!-- Receive AND send buffers must be large: Gazebo is the WRITER of the depth frames,
+           so an undersized send buffer (net.core.wmem_max) blocks its sensor thread and
+           stalls the lockstep just as a small receive buffer would. -->
+      <SocketReceiveBufferSize min="16MB"/>
+      <SocketSendBufferSize min="16MB"/>
+      <Watermarks>
+        <WhcHigh>4MB</WhcHigh>
+      </Watermarks>
+    </Internal>
+  </Domain>
+</CycloneDDS>

@@ -1,0 +1,94 @@
+<?xml version="1.0" ?>
+<!--
+  PX4 SITL model: S500-style quad (reuses PX4 'iris': rotors, gazebo_mavlink_interface,
+  IMU/GPS/baro/mag) + a forward depth camera on a boom, tilted 15 deg DOWN.
+
+  The camera uses libgazebo_ros_camera (ROS2) so it publishes directly to ROS2 topics:
+    /camera/color/image_raw      /camera/color/camera_info
+    /camera/depth/image_raw      /camera/depth/camera_info
+    /camera/points
+  all stamped in frame  camera_depth_optical_frame  (optical, z-forward / REP-103).
+
+  GEOMETRY MUST MATCH drone_description/urdf/drone.urdf.xacro:
+    camera_link pose (rel. base_link) = (0.22, 0, -0.02), pitch +0.2618 rad (15 deg down).
+  robot_state_publisher publishes base_link -> camera_link -> camera_depth_optical_frame
+  with the same numbers, so the SLAM cloud registers correctly to the body.
+-->
+<sdf version="1.6">
+  <model name="s500_depth">
+
+    <!-- Quad airframe: rotors + gazebo_mavlink_interface + IMU/GPS/baro/mag -->
+    <include>
+      <uri>model://iris</uri>
+    </include>
+
+    <!-- Camera boom link: 0.22 m forward, 0.02 m down, pitched ~52 deg down.
+         15 deg was too shallow — at any normal altitude (>2 m) the ground fell beyond the
+         10 m depth range and the view was mostly sky/horizon, so depth was ~all-invalid and
+         rgbd_odometry got quality=0. ~52 deg down puts the textured ground well inside the
+         depth range at ~2-4 m altitude (the intended "map the ground below" geometry). -->
+    <link name="camera_link">
+      <pose>0.22 0 -0.02 0 0.9076 0</pose>
+      <inertial>
+        <mass>0.05</mass>
+        <inertia>
+          <ixx>1e-5</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>1e-5</iyy><iyz>0</iyz><izz>1e-5</izz>
+        </inertia>
+      </inertial>
+      <visual name="visual">
+        <geometry><box><size>0.025 0.090 0.025</size></box></geometry>
+        <material><ambient>0.2 0.2 0.22 1</ambient><diffuse>0.2 0.2 0.22 1</diffuse></material>
+      </visual>
+
+      <!-- Resolution/rate kept modest (QVGA @ 10 Hz) so Gazebo's offscreen depth render +
+           DDS publish stay light. We run the px4_sitl_nolockstep build (PX4 on the real system
+           clock, Gazebo free-running), so the sim self-heals from transient slowdowns rather
+           than dropping the MAVLink link; keeping the camera cheap just helps Gazebo hold
+           real-time, which is what keeps the EKF happy. QVGA is ample for RTAB-Map mapping. -->
+      <sensor name="depth_camera" type="depth">
+        <always_on>1</always_on>
+        <update_rate>10</update_rate>
+        <visualize>1</visualize>
+        <camera name="d435">
+          <horizontal_fov>1.518</horizontal_fov> <!-- ~87 deg, Intel RealSense D435 -->
+          <image>
+            <width>320</width>
+            <height>240</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>10.0</far>
+          </clip>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.005</stddev>
+          </noise>
+        </camera>
+
+        <!-- libgazebo_ros_camera advertises topics under <camera_name>/..., so with
+             camera_name=camera and no extra namespace we get a clean, predictable tree:
+               /camera/image_raw          /camera/camera_info        (color)
+               /camera/depth/image_raw    /camera/depth/camera_info  (32FC1 metric depth)
+               /camera/points             (organized XYZRGB cloud)
+             all stamped in camera_depth_optical_frame. RTAB-Map remaps onto these. -->
+        <plugin name="depth_camera_controller" filename="libgazebo_ros_camera.so">
+          <camera_name>camera</camera_name>
+          <frame_name>camera_depth_optical_frame</frame_name>
+          <hack_baseline>0.07</hack_baseline>
+          <min_depth>0.1</min_depth>
+          <max_depth>10.0</max_depth>
+        </plugin>
+      </sensor>
+    </link>
+
+    <!-- Rigidly attach the camera boom to the iris airframe (rigid mount, not a gimbal) -->
+    <joint name="camera_joint" type="fixed">
+      <parent>iris::base_link</parent>
+      <child>camera_link</child>
+    </joint>
+
+  </model>
+</sdf>

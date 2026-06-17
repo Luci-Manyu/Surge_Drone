@@ -1,0 +1,22 @@
+# --- Large / reproducible third-party tree -------------------------------
+# PX4-Autopilot (~6.7 GB) is fetched & built by `./setup.sh px4`
+# (clones PX4/PX4-Autopilot @ v1.15.4). Our custom sim assets live in
+# ROS_2/src/drone_sim/px4 and are linked in by install_px4_assets.sh.
+/PX4-Autopilot/
+
+# --- ROS 2 / colcon build artifacts --------------------------------------
+ROS_2/build/
+ROS_2/install/
+ROS_2/log/
+
+# --- PX4 / sim runtime logs ----------------------------------------------
+*.ulg
+*.ulog
+
+# --- Editor / OS / tooling -----------------------------------------------
+.claude/settings.local.json
+__pycache__/
+*.pyc
+*.swp
+*~
+.DS_Store

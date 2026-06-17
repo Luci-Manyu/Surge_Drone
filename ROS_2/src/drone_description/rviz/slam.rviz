@@ -1,0 +1,84 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded: ~
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Color: 160; 160; 164
+      Plane Cell Count: 20
+      Enabled: true
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Show Names: true
+      Marker Scale: 0.5
+      Enabled: true
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Description Topic:
+        Value: /robot_description
+      Enabled: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: MapCloud
+      Topic:
+        Value: /rtabmap/cloud_map
+        Depth: 5
+        Durability Policy: Volatile
+        Reliability Policy: Reliable
+      Style: Flat Squares
+      Size (m): 0.02
+      Color Transformer: RGB8
+      Enabled: true
+    - Class: rviz_default_plugins/Map
+      Name: GridMap
+      Topic:
+        Value: /rtabmap/grid_map
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+      Color Scheme: map
+      Enabled: true
+    - Class: rviz_default_plugins/Odometry
+      Name: Odometry
+      Topic:
+        Value: /odom
+      Keep: 100
+      Shape:
+        Value: Arrow
+        Alpha: 1
+      Enabled: true
+    - Class: rviz_default_plugins/Image
+      Name: CameraColor
+      Topic:
+        Value: /camera/color/image_raw
+        Reliability Policy: Reliable
+      Enabled: true
+  Global Options:
+    Fixed Frame: map
+    Background Color: 48; 48; 48
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 12
+      Pitch: 0.6
+      Yaw: 0.8
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+    Saved: ~
+Window Geometry:
+  Height: 850
+  Width: 1300
+  Hidden: ~

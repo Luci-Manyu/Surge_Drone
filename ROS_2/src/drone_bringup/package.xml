@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>drone_bringup</name>
+  <version>0.1.0</version>
+  <description>Top-level bringup tying sim + MAVROS + control + SLAM + RViz together.</description>
+  <maintainer email="ee1251591@iitd.ac.in">abhimanyu</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>drone_description</exec_depend>
+  <exec_depend>drone_sim</exec_depend>
+  <exec_depend>drone_control</exec_depend>
+  <exec_depend>drone_slam</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

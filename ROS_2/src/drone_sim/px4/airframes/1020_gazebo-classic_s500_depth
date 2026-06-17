@@ -1,0 +1,11 @@
+#!/bin/sh
+#
+# @name S500 with forward depth camera (15 deg down) SITL
+#
+# @type Quadrotor Wide
+#
+# @maintainer abhimanyu <ee1251591@iitd.ac.in>
+#
+
+# Reuse the stock iris airframe parameters (rotors, mixer, MC defaults).
+. ${R}etc/init.d-posix/airframes/10015_gazebo-classic_iris
