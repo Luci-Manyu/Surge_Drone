@@ -25,6 +25,7 @@ setup(
         "console_scripts": [
             "offboard_keyboard = drone_control.offboard_keyboard:main",
             "mapping_sweep = drone_control.mapping_sweep:main",
+            "coverage_path = drone_control.coverage_path:main",
         ],
     },
 )

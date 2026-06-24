@@ -96,20 +96,30 @@ def generate_launch_description():
             "database_path": database_path, # where the persistent .db map is written
             "Rtabmap/DetectionRate": "1.0",
             "RGBD/NeighborLinkRefining": "true",
-            "RGBD/ProximityBySpace": "true",
             "Reg/Force3DoF": "false",       # drone moves in full 3D, not planar
             "Reg/Strategy": "1",            # 0=Vis, 1=ICP, 2=Vis+ICP
-            # ---- occupancy grid projected from the downward depth camera ----
+            # ---- drift fix: level the map with IMU gravity + close loops on overlap ----
+            # The raw map tilted ~9 deg (odom drift). Feed MAVROS IMU here too and add a
+            # gravity constraint to every node so optimization keeps the map level. The
+            # lawnmower coverage path overlaps lanes and returns to start, so spatial
+            # proximity detection links revisited ground and corrects accumulated drift.
+            "Optimizer/GravitySigma": "0.3",      # IMU gravity prior strength (needs imu topic)
+            "RGBD/ProximityBySpace": "true",      # link nearby past poses (overlapping lanes)
+            "RGBD/ProximityMaxGraphDepth": "50",
+            "RGBD/ProximityPathMaxNeighbors": "10",
+            "RGBD/AngularUpdate": "0.05",         # add nodes on small rotations too (denser graph)
+            "RGBD/LinearUpdate": "0.05",
+            # ---- finer occupancy grid + cloud projected from the downward depth camera ----
             "Grid/FromDepth": "true",
             "Grid/3D": "true",
-            "Grid/CellSize": "0.05",
+            "Grid/CellSize": "0.03",              # was 0.05 -> finer, more detailed map
             "Grid/RangeMax": "6.0",
             "Grid/RayTracing": "true",
             "Grid/MaxGroundHeight": "0.1",
             "Grid/MaxObstacleHeight": "2.0",
             "Grid/NormalsSegmentation": "true",
         }],
-        remappings=remaps,
+        remappings=remaps + [("imu", "/mavros/imu/data")],
         # "-d" deletes the previous database on start for a clean map each run.
         arguments=[PythonExpression(["'-d' if '", delete_db, "' == 'true' else ''"])],
     )

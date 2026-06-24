@@ -1,35 +1,44 @@
 # Maps
 
 Exported SLAM maps produced by RTAB-Map from the drone's downward depth camera
-during an autonomous `mapping_sweep` flight in PX4 SITL + Gazebo.
+during **autonomous** flights in PX4 SITL + Gazebo. Two environments are included.
 
-| File | What it is |
-|------|------------|
-| `surge_map_cloud.ply` | Assembled 3D point cloud (voxel-filtered to 1 cm, with normals). Open in CloudCompare / MeshLab. |
-| `surge_map_mesh.ply`  | Triangulated + colored surface mesh of the same map. |
-| `surge_map_poses.txt` | Optimized flight trajectory, TUM format: `timestamp x y z qx qy qz qw`. |
+Each map ships as a point cloud (`*_cloud.ply`), a colored surface mesh
+(`*_mesh.ply`), a trajectory (`*_poses.txt`, TUM `timestamp x y z qx qy qz qw`),
+and two rendered previews (`*_topdown.png` true-color, `*_contour.png` height map).
 
-**This map:** 245 optimized keyframe poses forming a single coherent graph,
-~718k points, from ~83 m of autonomous flight. (An earlier run fragmented into
-69 disconnected sub-maps because visual odometry kept losing the sparse ground;
-the IMU fusion + feature/reset tuning in `drone_slam/launch/rtabmap.launch.py`
-fixed that — the whole flight now resolves into one map.)
+### `surge_town_*` — custom `town_world`, systematic coverage flight  *(latest / best)*
+~570k points over an ~18 × 21 m "town" of ~60 varied-height buildings, flown with
+the **`coverage_path`** lawnmower. The **`*_contour.png`** colors every building by
+height (cyan ≈0.3 m → red ≈1.1 m) on flat, level ground — the IMU-gravity leveling
+removed the odometry tilt. This is the detailed, even map the coverage path + richer
+world produce.
+
+### `surge_map_*` — `slam_world`, `mapping_sweep` orbit
+~718k points / 245 keyframes from ~83 m of flight in the original sparse world. Kept
+as a second environment for comparison.
 
 ## How these are generated
 
-While the `rtabmap` node runs it continuously writes the live map to a SQLite
-database (default `~/.ros/rtabmap.db`). After a mapping flight, export it with:
+While `rtabmap` runs it continuously writes the live map to a SQLite database
+(default `~/.ros/rtabmap.db`; set with `database_path:=`). After a flight:
 
 ```bash
-scripts/save_map.sh                 # uses ~/.ros/rtabmap.db -> maps/surge_map_*
-scripts/save_map.sh /path/to.db foo # custom database + output name
+scripts/save_map.sh                       # ~/.ros/rtabmap.db -> maps/surge_map_*  (+ PNGs)
+scripts/save_map.sh ~/.ros/surge_town.db surge_town   # custom db + output name
 ```
 
-The database itself (`*.db`, often hundreds of MB) is **git-ignored** — only the
-lightweight exports above are committed. Re-run `save_map.sh` to regenerate them.
+`save_map.sh` exports the cloud/mesh/poses and renders the two PNG previews
+(`scripts/render_map.py`, `scripts/render_contour.py` — numpy only, no matplotlib).
+The `*.db` (hundreds of MB) is **git-ignored**; only these light exports are committed.
 
 ## Notes
 
-- The map is built in the `map` frame (RTAB-Map's optimized graph), Z up.
-- A fresh run starts a clean map by default (`delete_db:=true`). Pass
-  `delete_db:=false` to keep appending to an existing database across flights.
+- Maps are in the `map` frame, Z up. A fresh run wipes the db by default
+  (`delete_db:=true`); pass `delete_db:=false` to append across flights.
+- The town cloud is exported with `rtabmap-export --opt 3` (assemble on raw
+  odometry poses) to keep the **full** coverage in one piece. RTAB-Map's default
+  global optimization currently only bridges the largest loop-closed sub-graph, so
+  it would crop the map; `--opt 3` trades a little residual drift for complete extent.
+- `*_contour.png` detrends the ground plane and shows **height above ground**, so
+  object heights are readable straight from the depth data.

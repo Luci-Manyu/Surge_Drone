@@ -42,6 +42,16 @@ rtabmap-export --mesh  --output "$NAME" --output_dir "$OUT_DIR" "$DB"
 # Optimized trajectory (RGBD-SLAM / TUM-style format).
 rtabmap-export --poses --poses_format 1 --output "$NAME" --output_dir "$OUT_DIR" "$DB"
 
+# Render PNG previews (top-down true-color + height/contour). Optional: skipped if the
+# cloud or python/numpy are unavailable; never fails the export.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if command -v python3 >/dev/null 2>&1 && python3 -c "import numpy" 2>/dev/null; then
+  python3 "$HERE/render_map.py"     "$OUT_DIR/${NAME}_cloud.ply" "$OUT_DIR/${NAME}_topdown.png" 2>/dev/null \
+    && echo "  rendered ${NAME}_topdown.png" || echo "  (top-down render skipped)"
+  python3 "$HERE/render_contour.py" "$OUT_DIR/${NAME}_cloud.ply" "$OUT_DIR/${NAME}_contour.png" 2>/dev/null \
+    && echo "  rendered ${NAME}_contour.png" || echo "  (contour render skipped)"
+fi
+
 echo
 echo "==> Done. Files written:"
-ls -lh "$OUT_DIR/${NAME}_cloud.ply" "$OUT_DIR/${NAME}_mesh.ply" "$OUT_DIR/${NAME}_poses.txt" 2>/dev/null || true
+ls -lh "$OUT_DIR/${NAME}"_*.ply "$OUT_DIR/${NAME}_poses.txt" "$OUT_DIR/${NAME}"_*.png 2>/dev/null || true

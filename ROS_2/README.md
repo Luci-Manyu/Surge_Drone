@@ -9,7 +9,7 @@ visualized in **RViz2**.
 |---------|------|
 | `drone_description` | Simplified URDF + RViz config; publishes `base_link → camera_link → camera_depth_optical_frame` TF |
 | `drone_sim` | PX4 SITL Gazebo model `s500_depth` (iris + 15°-down ROS2 depth camera), `slam_world`, sim launch, PX4 asset installer |
-| `drone_control` | MAVROS bridge + `offboard_keyboard` (teleop `/cmd_vel` → PX4 OFFBOARD velocity, auto arm/takeoff) + `mapping_sweep` (hands-free autonomous mapping flight) |
+| `drone_control` | MAVROS bridge + `offboard_keyboard` (teleop → PX4 OFFBOARD velocity, auto arm/takeoff) + `mapping_sweep` (orbit) + `coverage_path` (systematic lawnmower) |
 | `drone_slam` | RTAB-Map `rgbd_odometry` + `rtabmap` visual SLAM launch/params (IMU fusion, anti-fragmentation tuning, configurable `database_path`) |
 | `drone_bringup` | Top-level launch tying it all together |
 
@@ -62,9 +62,10 @@ ros2 launch drone_bringup slam_sim.launch.py
 The drone auto-arms, takes off to ~2 m, then flies from the keyboard
 (`i/,` fwd/back, `j/l` yaw, `t/b` up/down, shift to strafe). Fly around and the map grows in RViz.
 
-**Autonomous mapping** (instead of B's teleop): `ros2 run drone_control mapping_sweep
---ros-args -p target_altitude:=1.8 -p forward_speed:=0.3 -p yaw_rate:=0.1` flies a hands-free
-low orbit while RTAB-Map maps.
+**Autonomous mapping** (instead of B's teleop): `ros2 run drone_control coverage_path` flies a
+systematic lawnmower for complete, even maps (or `mapping_sweep` for a simple orbit).
+**Other worlds:** swap the make target, e.g. `gazebo-classic_s500_depth__town_world` (a detailed
+custom town built by `scripts/gen_world.py`).
 
 **Save the map** after a flight: `~/Surge/scripts/save_map.sh` exports the live RTAB-Map
 database to `maps/surge_map_{cloud.ply,mesh.ply,poses.txt}`. Point it at any db:

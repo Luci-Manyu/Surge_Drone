@@ -37,9 +37,13 @@ echo "Repo assets   : $SIM_DIR"
 ln -sfn "$SIM_DIR/models/s500_depth" "$MODELS_DST/s500_depth"
 echo "  linked model    -> $MODELS_DST/s500_depth"
 
-# 2) world  ---------------------------------------------------------------
-ln -sfn "$SIM_DIR/worlds/slam_world.world" "$WORLDS_DST/slam_world.world"
-echo "  linked world    -> $WORLDS_DST/slam_world.world"
+# 2) worlds  --------------------------------------------------------------
+#    Link EVERY world in this repo (slam_world, town_world, …) into PX4.
+for w in "$SIM_DIR"/worlds/*.world; do
+  bn="$(basename "$w")"
+  ln -sfn "$w" "$WORLDS_DST/$bn"
+  echo "  linked world    -> $WORLDS_DST/$bn"
+done
 
 # 3) airframe  ------------------------------------------------------------
 ln -sfn "$THIS_DIR/airframes/$AIRFRAME" "$AIRFRAMES_DST/$AIRFRAME"
@@ -68,12 +72,15 @@ else
   sed -i "/^${TAB}${TAB}uuv_hippocampus$/a\\${TAB}${TAB}s500_depth" "$SITL_TARGETS"
   echo "  added model s500_depth to target generator"
 fi
-if grep -q "slam_world" "$SITL_TARGETS"; then
-  echo "  world slam_world already in target generator"
-else
-  sed -i "/^${TAB}${TAB}yosemite$/a\\${TAB}${TAB}slam_world" "$SITL_TARGETS"
-  echo "  added world slam_world to target generator"
-fi
+for w in "$SIM_DIR"/worlds/*.world; do
+  wn="$(basename "$w" .world)"
+  if grep -q "^${TAB}${TAB}${wn}$" "$SITL_TARGETS"; then
+    echo "  world $wn already in target generator"
+  else
+    sed -i "/^${TAB}${TAB}yosemite$/a\\${TAB}${TAB}${wn}" "$SITL_TARGETS"
+    echo "  added world $wn to target generator"
+  fi
+done
 
 # 6) free-run Gazebo (enable_lockstep=0) to match the PX4 *nolockstep* build ----------------
 #    There are TWO independent lockstep switches and they MUST agree:
