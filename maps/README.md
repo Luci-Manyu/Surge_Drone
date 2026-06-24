@@ -8,11 +8,12 @@ Each map ships as a point cloud (`*_cloud.ply`), a colored surface mesh
 and two rendered previews (`*_topdown.png` true-color, `*_contour.png` height map).
 
 ### `surge_town_*` — custom `town_world`, systematic coverage flight  *(latest / best)*
-~560k points over an ~20 × 21 m "town" of ~60 varied-height buildings, flown with
-the **`coverage_path`** lawnmower. The **`*_contour.png`** colors every building by
-height (cyan ≈0.3 m → red ≈1.1 m) on flat, level ground — IMU-gravity leveling removed
-the tilt and **72 loop closures** (after offline bridging) corrected the drift, so this
-is a **full-extent, drift-corrected** map (237 connected poses, global optimization).
+~435k points over an ~18 × 20 m "town" of ~60 varied-height buildings, flown with the
+**`coverage_path`** lawnmower. The **`*_contour.png`** colors every building by height
+(cyan ≈0.3 m → red ≈1.1 m) on flat, level ground. With the visual loop-closure fix this
+flight stayed a **single connected map online** (203 poses, 277 optimized links) — no
+offline bridging needed — and the residual vertical drift is only ~1.8 m (was ~9.6 m raw).
+A **full-extent, drift-corrected** map straight from the live run.
 
 ### `surge_map_*` — `slam_world`, `mapping_sweep` orbit
 ~718k points / 245 keyframes from ~83 m of flight in the original sparse world. Kept
