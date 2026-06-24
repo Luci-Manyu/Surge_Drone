@@ -13,6 +13,11 @@ ROS_2/log/
 *.ulg
 *.ulog
 
+# --- SLAM maps -----------------------------------------------------------
+# Keep the lightweight exported maps (maps/*.ply, *.txt) but never commit the
+# multi-hundred-MB RTAB-Map database; regenerate exports with scripts/save_map.sh.
+*.db
+
 # --- Editor / OS / tooling -----------------------------------------------
 .claude/settings.local.json
 __pycache__/

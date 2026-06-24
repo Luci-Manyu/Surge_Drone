@@ -13,6 +13,8 @@ Outputs consumed by RViz:
   /rtabmap/cloud_map  (3D point cloud map)
   /rtabmap/grid_map   (2D occupancy grid, projected from depth)
 """
+import os
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PythonExpression
@@ -24,6 +26,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
     delete_db = LaunchConfiguration("delete_db")
     rtabmap_viz = LaunchConfiguration("rtabmap_viz")
+    database_path = LaunchConfiguration("database_path")
 
     # Topic remaps shared by both nodes.
     remaps = [
@@ -31,6 +34,11 @@ def generate_launch_description():
         ("rgb/camera_info", "/camera/camera_info"),
         ("depth/image", "/camera/depth/image_raw"),
     ]
+
+    # rgbd_odometry can fuse an IMU to stay robust through fast motion / motion blur and to keep
+    # gravity (roll/pitch) observable. PX4's EKF already fuses the IMU, so MAVROS re-publishes a
+    # clean, oriented /mavros/imu/data we can feed straight in.
+    odom_remaps = remaps + [("imu", "/mavros/imu/data")]
 
     # Common subscription/sync settings.
     common = {
@@ -60,11 +68,22 @@ def generate_launch_description():
         parameters=[common | {
             "odom_frame_id": "odom",
             "publish_tf": True,             # rgbd_odometry OWNS odom -> base_link
+            # Fuse IMU (gravity-aligns the pose, survives blur). Don't block startup on it: if
+            # MAVROS is slow/absent, wait_imu_to_init=False still lets VO bootstrap from images.
             "wait_imu_to_init": False,
-            "Odom/ResetCountdown": "1",     # auto-reset if VO is lost (feature-poor view)
-            "Vis/MinInliers": "12",
+            # --- anti-fragmentation tuning ---------------------------------------------
+            # Over the sim world's sparse ground the downward cam often saw <12 features, so VO
+            # kept resetting and rtabmap started a NEW map each time (one autonomous flight came
+            # out as 69 disconnected fragments). Pull more, cheaper features and tolerate fewer
+            # inliers so VO survives feature-poor patches and the map stays a single graph.
+            "Odom/ResetCountdown": "5",     # ride out brief dropouts before declaring VO lost
+            "Vis/MinInliers": "8",          # was 12; accept weaker-but-valid registrations
+            "Vis/MaxFeatures": "1500",      # extract more candidates per frame
+            "GFTT/QualityLevel": "0.0001",  # lower corner-quality bar -> features on sparse ground
+            "GFTT/MinDistance": "5.0",      # was 7; allow denser feature spacing
+            "Odom/GuessMotion": "true",     # use previous motion as a guess -> fewer lost frames
         }],
-        remappings=remaps,
+        remappings=odom_remaps,
     )
 
     rtabmap = Node(
@@ -74,6 +93,7 @@ def generate_launch_description():
         parameters=[common | {
             "subscribe_odom_info": True,
             "publish_tf": True,             # rtabmap OWNS map -> odom
+            "database_path": database_path, # where the persistent .db map is written
             "Rtabmap/DetectionRate": "1.0",
             "RGBD/NeighborLinkRefining": "true",
             "RGBD/ProximityBySpace": "true",
@@ -104,7 +124,13 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument("use_sim_time", default_value="true"),
-        DeclareLaunchArgument("delete_db", default_value="true"),
+        DeclareLaunchArgument("delete_db", default_value="true",
+                              description="Start a fresh map (-d wipes the db at launch). "
+                                          "Set false to keep appending to the existing map."),
+        DeclareLaunchArgument("database_path",
+                              default_value=os.path.expanduser("~/.ros/rtabmap.db"),
+                              description="Persistent SLAM database; export maps from it with "
+                                          "scripts/save_map.sh."),
         DeclareLaunchArgument("rtabmap_viz", default_value="false",
                               description="RTAB-Map's own GUI (separate from RViz)"),
         rgbd_odometry,

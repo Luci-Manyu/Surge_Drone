@@ -48,6 +48,8 @@ def generate_launch_description():
     start_mavros = LaunchConfiguration("start_mavros")
     start_slam = LaunchConfiguration("start_slam")
     start_rviz = LaunchConfiguration("start_rviz")
+    delete_db = LaunchConfiguration("delete_db")
+    database_path = LaunchConfiguration("database_path")
 
     rviz_cfg = PathJoinSubstitution(
         [FindPackageShare("drone_description"), "rviz", "slam.rviz"])
@@ -64,6 +66,11 @@ def generate_launch_description():
         DeclareLaunchArgument("start_mavros", default_value="true"),
         DeclareLaunchArgument("start_slam", default_value="true"),
         DeclareLaunchArgument("start_rviz", default_value="true"),
+        DeclareLaunchArgument("delete_db", default_value="true",
+                              description="Forwarded to RTAB-Map: start a fresh map each run."),
+        DeclareLaunchArgument("database_path",
+                              default_value=os.path.expanduser("~/.ros/rtabmap.db"),
+                              description="Forwarded to RTAB-Map: persistent SLAM database path."),
 
         # PX4 SITL + Gazebo (opt-in; long first build)
         _include("drone_sim", "px4_sim.launch.py", condition=IfCondition(start_px4)),
@@ -87,7 +94,9 @@ def generate_launch_description():
         # RTAB-Map visual SLAM
         _include("drone_slam", "rtabmap.launch.py",
                  condition=IfCondition(start_slam),
-                 args={"use_sim_time": use_sim_time}),
+                 args={"use_sim_time": use_sim_time,
+                       "delete_db": delete_db,
+                       "database_path": database_path}),
 
         # RViz
         Node(

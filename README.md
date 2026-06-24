@@ -16,14 +16,16 @@ Everything — the ROS 2 workspace, the PX4 checkout, the CAD, and the setup scr
 Surge/
 ├── README.md                ← this file
 ├── setup.sh                 ← one-shot installer (deps + PX4 + workspace build)
+├── scripts/                 ← helper scripts (save_map.sh — export a built map to .ply/.txt)
+├── maps/                    ← exported SLAM maps (point cloud, mesh, trajectory) + their README
 ├── CAD/                     ← Fusion 360 design (Drone_SLAM.f3z, S500-C1_ASM, Pixhawk 6C mini)
 ├── PX4-Autopilot/           ← PX4 flight stack (v1.15.4) — SITL firmware + Gazebo plugins
 └── ROS_2/                   ← colcon workspace
     └── src/
         ├── drone_description/  URDF + RViz + TF (base_link → camera_link → optical)
         ├── drone_sim/          PX4 SITL model s500_depth, slam_world, sim launch, PX4 asset installer
-        ├── drone_control/      MAVROS bridge + offboard_keyboard (teleop → PX4 OFFBOARD velocity)
-        ├── drone_slam/         RTAB-Map rgbd_odometry + rtabmap launch/params
+        ├── drone_control/      MAVROS bridge + offboard_keyboard (teleop) + mapping_sweep (autonomous)
+        ├── drone_slam/         RTAB-Map rgbd_odometry + rtabmap launch/params (IMU fusion, map export)
         └── drone_bringup/      top-level launch wiring it all together
 ```
 
@@ -93,6 +95,32 @@ and 2D occupancy grid grow live in RViz.
 > **Tip — start PX4 from the same bringup.** `slam_sim.launch.py start_px4:=true` will also
 > launch the PX4 sim, but keeping it in its own terminal is usually clearer for debugging.
 
+### Autonomous mapping (no keyboard)
+Instead of Terminal B's teleop, fly a **hands-free** low sweep that holds altitude and slowly
+orbits while RTAB-Map maps the ground:
+```bash
+source ~/Surge/ROS_2/source_env.sh
+ros2 run drone_control mapping_sweep \
+  --ros-args -p target_altitude:=1.8 -p forward_speed:=0.3 -p yaw_rate:=0.1
+```
+`mapping_sweep` runs a P-controller on altitude (the downward depth cam only sees the ground
+from low down) and publishes `/cmd_vel`, which `offboard_keyboard` turns into PX4 OFFBOARD
+velocity. Flying **low and slow keeps visual odometry locked** so the map stays one coherent
+graph (see *SLAM robustness* below).
+
+### Generate & save a map
+While `rtabmap` runs it continuously writes the live map to a SQLite database
+(`~/.ros/rtabmap.db` by default; override with `database_path:=…`). After a flight, export it
+to portable files:
+```bash
+scripts/save_map.sh                          # ~/.ros/rtabmap.db  -> maps/surge_map_*
+scripts/save_map.sh ~/.ros/surge_fresh2.db   # any database
+```
+This writes `maps/surge_map_cloud.ply` (point cloud), `…_mesh.ply` (surface mesh), and
+`…_poses.txt` (trajectory, TUM format) — open the `.ply` files in CloudCompare or MeshLab.
+A sample map (~718k points from an autonomous flight) ships in `maps/`. The multi-hundred-MB
+`.db` itself is git-ignored; the lightweight exports are committed. See [`maps/README.md`](maps/README.md).
+
 ---
 
 ## Architecture
@@ -139,6 +167,14 @@ map ──(rtabmap)──► odom ──(rgbd_odometry)──► base_link ─�
 - **Depth camera is QVGA @ 10 Hz** and the SLAM nodes subscribe **best-effort** — high-rate
   RELIABLE camera readers made Gazebo's writer block, another sim staller. QVGA is ample for
   mapping.
+- **SLAM robustness (anti-fragmentation).** The downward camera over the sim world's sparse
+  ground often saw too few features, so visual odometry kept resetting and `rtabmap` started a
+  **new map** each time — one autonomous flight came out as **69 disconnected sub-maps**.
+  Fixes in `drone_slam/launch/rtabmap.launch.py`: **fuse the IMU** (`/mavros/imu/data`, keeps
+  roll/pitch observable and rides through motion blur), pull **more/cheaper features**
+  (`Vis/MaxFeatures`, lower `GFTT/QualityLevel`/`MinDistance`, `Vis/MinInliers` 12→8), and
+  **ride out brief dropouts** (`Odom/ResetCountdown` 1→5) before declaring VO lost. Result: the
+  same flight now resolves into **one coherent map (~245 keyframes)**.
 
 ---
 
@@ -182,11 +218,20 @@ map ──(rtabmap)──► odom ──(rgbd_odometry)──► base_link ─�
       PX4's real onboard port `14580` and set MAVROS `use_sim_time=false` (nolockstep PX4 is on
       the real clock). The "autopilot version service timeout" warning is benign and unrelated.
 
-### In progress
-- [ ] Confirm the RTAB-Map cloud/grid grows in RViz while flying
-- [ ] Tuning: VO feature richness (checkerboard ground is repetitive — may swap texture), grid res
+### Done (continued)
+- [x] **RTAB-Map builds a live map end-to-end** — confirmed the 3D cloud grows while flying
+      (`/rtabmap/cloud_map`, `/rtabmap/grid_map`).
+- [x] **Autonomous mapping flight** — `mapping_sweep` node (altitude-hold P-controller + slow
+      orbit) flies hands-free, no teleop, while RTAB-Map maps.
+- [x] **IMU fusion + anti-fragmentation tuning** — VO no longer shatters the map over sparse
+      ground; an autonomous flight now resolves into **one coherent ~245-keyframe map** (was 69
+      fragments). See *SLAM robustness* above.
+- [x] **Map export pipeline** — persistent/configurable `database_path`, `scripts/save_map.sh`,
+      and a committed sample map in `maps/` (~718k-point cloud + mesh + trajectory).
 
 ### Next phases (planned)
+- [ ] Frontier-based **autonomous exploration** (goal-driven, replaces the open-loop sweep)
+- [ ] **Obstacle avoidance** using the live occupancy grid / depth
 - [ ] Fuse visual odometry into PX4 EKF2-vision for GPS-denied flight
 - [ ] Nav2 autonomous waypoint navigation on the RTAB-Map costmap
 - [ ] Real hardware bring-up (RealSense + Jetson + Pixhawk) — topics/frames already match
