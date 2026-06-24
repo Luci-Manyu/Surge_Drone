@@ -8,11 +8,11 @@ Each map ships as a point cloud (`*_cloud.ply`), a colored surface mesh
 and two rendered previews (`*_topdown.png` true-color, `*_contour.png` height map).
 
 ### `surge_town_*` — custom `town_world`, systematic coverage flight  *(latest / best)*
-~570k points over an ~18 × 21 m "town" of ~60 varied-height buildings, flown with
+~560k points over an ~20 × 21 m "town" of ~60 varied-height buildings, flown with
 the **`coverage_path`** lawnmower. The **`*_contour.png`** colors every building by
-height (cyan ≈0.3 m → red ≈1.1 m) on flat, level ground — the IMU-gravity leveling
-removed the odometry tilt. This is the detailed, even map the coverage path + richer
-world produce.
+height (cyan ≈0.3 m → red ≈1.1 m) on flat, level ground — IMU-gravity leveling removed
+the tilt and **72 loop closures** (after offline bridging) corrected the drift, so this
+is a **full-extent, drift-corrected** map (237 connected poses, global optimization).
 
 ### `surge_map_*` — `slam_world`, `mapping_sweep` orbit
 ~718k points / 245 keyframes from ~83 m of flight in the original sparse world. Kept
@@ -24,8 +24,11 @@ While `rtabmap` runs it continuously writes the live map to a SQLite database
 (default `~/.ros/rtabmap.db`; set with `database_path:=`). After a flight:
 
 ```bash
-scripts/save_map.sh                       # ~/.ros/rtabmap.db -> maps/surge_map_*  (+ PNGs)
-scripts/save_map.sh ~/.ros/surge_town.db surge_town   # custom db + output name
+# full-extent, drift-corrected: bridge the sub-graphs (offline loop closure) then export
+scripts/bridge_map.sh ~/.ros/surge_town.db                 # -> ~/.ros/surge_town_bridged.db
+scripts/save_map.sh   ~/.ros/surge_town_bridged.db surge_town
+
+scripts/save_map.sh                                        # quick export of ~/.ros/rtabmap.db
 ```
 
 `save_map.sh` exports the cloud/mesh/poses and renders the two PNG previews
@@ -36,9 +39,10 @@ The `*.db` (hundreds of MB) is **git-ignored**; only these light exports are com
 
 - Maps are in the `map` frame, Z up. A fresh run wipes the db by default
   (`delete_db:=true`); pass `delete_db:=false` to append across flights.
-- The town cloud is exported with `rtabmap-export --opt 3` (assemble on raw
-  odometry poses) to keep the **full** coverage in one piece. RTAB-Map's default
-  global optimization currently only bridges the largest loop-closed sub-graph, so
-  it would crop the map; `--opt 3` trades a little residual drift for complete extent.
+- The town cloud is exported with full global optimization (`--opt 0`) from the
+  **bridged** database (`scripts/bridge_map.sh`), so it is both full-extent and
+  drift-corrected. (Without bridging, RTAB-Map optimizes only the largest connected
+  sub-graph and crops the map — hence the bridge step re-detects loop closures across
+  the flight's sub-maps using visual, not ICP, verification.)
 - `*_contour.png` detrends the ground plane and shows **height above ground**, so
   object heights are readable straight from the depth data.

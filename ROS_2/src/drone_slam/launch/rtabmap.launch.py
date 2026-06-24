@@ -97,13 +97,20 @@ def generate_launch_description():
             "Rtabmap/DetectionRate": "1.0",
             "RGBD/NeighborLinkRefining": "true",
             "Reg/Force3DoF": "false",       # drone moves in full 3D, not planar
-            "Reg/Strategy": "1",            # 0=Vis, 1=ICP, 2=Vis+ICP
-            # ---- drift fix: level the map with IMU gravity + close loops on overlap ----
-            # The raw map tilted ~9 deg (odom drift). Feed MAVROS IMU here too and add a
-            # gravity constraint to every node so optimization keeps the map level. The
-            # lawnmower coverage path overlaps lanes and returns to start, so spatial
-            # proximity detection links revisited ground and corrects accumulated drift.
+            # VISUAL registration, NOT ICP. The camera looks down at near-flat ground, where ICP
+            # is degenerate (it can slide freely in the ground plane) so it REJECTS loop closures
+            # — reprocessing a flight with ICP accepted 0/190 candidates, with Vis 72. Visual
+            # feature matching constrains the in-plane motion, so loops actually close.
+            "Reg/Strategy": "0",                  # 0=Vis, 1=ICP, 2=Vis+ICP
+            "RGBD/LoopClosureReextractFeatures": "true",  # dense features for loop verification
+            # ---- drift fix: level the map (IMU gravity) + close loops on overlap ----
+            # Raw maps tilted ~9 deg and drifted. Gravity prior keeps the map level; appearance +
+            # spatial loop closure over the overlapping lawnmower lanes / return-to-start corrects
+            # accumulated drift. Keep all nodes in working memory (MemoryThr 0) so the revisit at
+            # the end can still match the start — fine for these short coverage missions.
             "Optimizer/GravitySigma": "0.3",      # IMU gravity prior strength (needs imu topic)
+            "Rtabmap/MemoryThr": "0",             # unlimited WM: every node stays a loop candidate
+            "Rtabmap/LoopThr": "0.08",            # accept loop hypotheses a bit more readily
             "RGBD/ProximityBySpace": "true",      # link nearby past poses (overlapping lanes)
             "RGBD/ProximityMaxGraphDepth": "50",
             "RGBD/ProximityPathMaxNeighbors": "10",

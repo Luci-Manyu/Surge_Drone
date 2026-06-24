@@ -134,7 +134,12 @@ While `rtabmap` runs it continuously writes the live map to a SQLite database
 to portable files:
 ```bash
 scripts/save_map.sh                          # ~/.ros/rtabmap.db  -> maps/surge_map_*
-scripts/save_map.sh ~/.ros/surge_fresh2.db   # any database
+scripts/save_map.sh ~/.ros/surge_town.db surge_town   # any database + output name
+
+# For a full-extent, DRIFT-CORRECTED map, bridge the flight's sub-graphs first
+# (offline loop closure), then export the bridged db:
+scripts/bridge_map.sh ~/.ros/surge_town.db            # -> ~/.ros/surge_town_bridged.db
+scripts/save_map.sh   ~/.ros/surge_town_bridged.db surge_town
 ```
 This writes the point cloud (`…_cloud.ply`), surface mesh (`…_mesh.ply`), trajectory
 (`…_poses.txt`), and two **PNG previews** — a true-color top-down (`…_topdown.png`) and a
@@ -261,13 +266,17 @@ map ──(rtabmap)──► odom ──(rgbd_odometry)──► base_link ─�
       complete, even maps (replaces the open-loop orbit).
 - [x] **Detailed multi-environment maps** — custom `town_world` (`scripts/gen_world.py`), IMU
       **gravity leveling** (flat ground, drift fixed), finer grid; height/**contour** renders show
-      per-building heights. Validated in `town_world` (~570k-point map) and `slam_world`.
+      per-building heights. Validated in `town_world` (~560k-point map) and `slam_world`.
+- [x] **Full-extent, drift-corrected export** — the flight's sub-graphs are bridged by loop
+      closure so global optimization spans the whole map (not just the largest fragment). Root
+      cause: ICP loop-closure verification is degenerate on the near-flat ground (rejected
+      0/190 candidates); **visual** registration accepts them (72). Online via `Reg/Strategy:0`
+      in the launch; offline via `scripts/bridge_map.sh` (reprocess any old database).
 
 ### Next phases (planned)
 - [ ] Frontier-based **autonomous exploration** (goal-driven, replaces the fixed coverage box)
 - [ ] **Obstacle avoidance** using the live occupancy grid / depth
-- [ ] Fix the export crop: get RTAB-Map's global optimization to bridge all sub-graphs so the
-      drift-corrected map keeps full extent (currently use `--opt 3` for complete coverage)
+- [ ] Fuse visual odometry into PX4 EKF2-vision for GPS-denied flight
 - [ ] Fuse visual odometry into PX4 EKF2-vision for GPS-denied flight
 - [ ] Nav2 autonomous waypoint navigation on the RTAB-Map costmap
 - [ ] Real hardware bring-up (RealSense + Jetson + Pixhawk) — topics/frames already match
